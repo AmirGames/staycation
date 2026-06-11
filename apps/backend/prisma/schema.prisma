@@ -1,0 +1,136 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
+}
+
+enum UserRole {
+  ADMIN
+  HOST
+  GUEST
+  SUPPORT
+}
+
+enum TenantPlan {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum PropertyStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Tenant {
+  id                String    @id @default(cuid())
+  slug              String    @unique
+  name              String
+  plan              TenantPlan @default(FREE)
+  stripeCustomerId  String?   @unique
+  users             User[]
+  properties        Property[]
+  bookings          Booking[]
+  payments          Payment[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@index([slug])
+  @@index([deletedAt])
+}
+
+model User {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email             String
+  passwordHash      String
+  firstName         String
+  lastName          String
+  role              UserRole  @default(GUEST)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([deletedAt])
+}
+
+model Property {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title             String
+  description       String
+  status            PropertyStatus @default(DRAFT)
+  pricePerNight     Float
+  bookings          Booking[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@unique([tenantId, id])
+  @@index([tenantId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Booking {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  propertyId        String
+  property          Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  totalPrice        Float
+  status            BookingStatus @default(PENDING)
+  payments          Payment[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@unique([tenantId, id])
+  @@index([tenantId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Payment {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookingId         String
+  booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount            Float
+  status            PaymentStatus @default(PENDING)
+  stripePaymentId   String?   @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@unique([tenantId, id])
+  @@index([tenantId])
+  @@index([status])
+}

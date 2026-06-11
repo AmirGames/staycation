@@ -1,0 +1,23 @@
+# Build stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+# Copier package.json + package-lock.json
+COPY apps/backend/package.json .
+COPY apps/backend/package-lock.json .
+RUN npm ci
+COPY apps/backend/ .
+RUN npm run build
+
+
+# Runtime stage
+FROM node:18-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD node -e "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+CMD ["npm", "start"]
